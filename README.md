@@ -40,11 +40,9 @@ Now you can use haystack as usual. Notice so far it only provides a few features
  * Clearing the whole index
  * Searching models without filtering nor faceting.
 
-
 TODO
 ----
 
- * order by
  * partially clear and index
  * query just one or several models, not all models
  * filtering by dates and numbers
@@ -52,3 +50,7 @@ TODO
  * more_like_this
  * highlighting
  * faceting
+
+ Notice algolia.com does not support [dinamically defined (per query) sort
+ order](https://www.algolia.com/doc/guides/python#Sorting), so using
+ .order_by() in a haystack SearchQueryset won't make any difference.

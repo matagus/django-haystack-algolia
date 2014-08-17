@@ -153,15 +153,16 @@ class AlgoliaSearchBackend(BaseSearchBackend):
                 pass
 
         # set the sort order
-        self.index.setSettings({"customRanking": ["desc(name)"]})
 
         start_offset = kwargs['start_offset']
         end_offset = kwargs['end_offset']
         per_page = end_offset - start_offset
         page = int(start_offset / per_page)
 
+        # query algolia.com
         raw_results = self.index.search(query_string, dict(hitsPerPage=per_page, facets='*', page=page))
 
+        # and then transform json response into haystack search result instances
         results = self._process_results(raw_results, result_class=result_class)
 
         return {
