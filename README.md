@@ -44,7 +44,6 @@ Now you can use haystack as usual. Notice so far it only provides a few features
 TODO
 ----
 
- * paginacion
  * order by
  * partially clear and index
  * query just one or several models, not all models

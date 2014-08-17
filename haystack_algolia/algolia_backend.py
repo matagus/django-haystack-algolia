@@ -23,6 +23,7 @@ from haystack.models import SearchResult
 
 from algoliasearch import algoliasearch
 
+
 DATETIME_REGEX = re.compile(
     r'^(?P<year>\d{4})-(?P<month>\d{2})-(?P<day>\d{2})T'
     r'(?P<hour>\d{2}):(?P<minute>\d{2}):(?P<second>\d{2})(\.\d+)?$')
@@ -154,7 +155,12 @@ class AlgoliaSearchBackend(BaseSearchBackend):
         # set the sort order
         self.index.setSettings({"customRanking": ["desc(name)"]})
 
-        raw_results = self.index.search(query_string, dict(hitsPerPage=20, facets='*', page=0))
+        start_offset = kwargs['start_offset']
+        end_offset = kwargs['end_offset']
+        per_page = end_offset - start_offset
+        page = int(start_offset / per_page)
+
+        raw_results = self.index.search(query_string, dict(hitsPerPage=per_page, facets='*', page=page))
 
         results = self._process_results(raw_results, result_class=result_class)
 

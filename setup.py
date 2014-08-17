@@ -9,7 +9,7 @@ def read(fname):
 
 setup(
     name = 'haystack-algolia',
-    version = '0.2',
+    version = '0.2.1',
     description = "An Algolia backend for Haystack",
     long_description = read('README.md'),
     classifiers = [
