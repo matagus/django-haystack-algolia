@@ -10,14 +10,15 @@ import re
 from warnings import warn
 
 from django.conf import settings
-from django.utils import six
 from django.core.exceptions import ImproperlyConfigured
+from django.db.models.loading import get_model
+from django.utils import six
 
 import haystack
 
 from haystack import connections
 from haystack.backends import BaseEngine, BaseSearchBackend, BaseSearchQuery, log_query
-from haystack.constants import ID
+from haystack.constants import ID, DJANGO_CT, DJANGO_ID
 from haystack.models import SearchResult
 
 from algoliasearch import algoliasearch
@@ -71,7 +72,7 @@ class AlgoliaSearchBackend(BaseSearchBackend):
 
     def setup(self):
 
-        unified_index = haystack.connections[self.connection_alias].get_unified_index()
+        unified_index = connections[self.connection_alias].get_unified_index()
 
         # which fields to index
         fields = set(unified_index.all_searchfields().keys())
@@ -115,8 +116,6 @@ class AlgoliaSearchBackend(BaseSearchBackend):
 
     def remove(self, obj, commit=True):
 
-        print(locals())
-
         if not self.setup_complete:
             self.setup()
 
@@ -134,13 +133,11 @@ class AlgoliaSearchBackend(BaseSearchBackend):
     @log_query
     def search(self, query_string, **kwargs):
 
-        print(locals())
-
         if not self.setup_complete:
             self.setup()
 
         hits = 0
-        results = ["object-1", "object-2"]
+        results = []
         result_class = SearchResult
         models = connections[self.connection_alias].get_unified_index().get_indexed_models()
 
@@ -157,11 +154,55 @@ class AlgoliaSearchBackend(BaseSearchBackend):
         # set the sort order
         self.index.setSettings({"customRanking": ["desc(name)"]})
 
-        results = self.index.search(query_string, dict(hitsPerPage=20, facets='*', page=0))
+        raw_results = self.index.search(query_string, dict(hitsPerPage=20, facets='*', page=0))
+
+        results = self._process_results(raw_results, result_class=result_class)
 
         return {
-            'results': results["hits"],
+            'results': results["results"],
+            'hits': results["hits"],
+        }
+
+    def _process_results(self, raw_results, result_class=SearchResult):
+
+        results = []
+        hits = raw_results['nbHits']
+
+        if result_class is None:
+            result_class = SearchResult
+
+        unified_index = connections[self.connection_alias].get_unified_index()
+        indexed_models = unified_index.get_indexed_models()
+
+        for raw_result in raw_results.get('hits', []):
+            app_label, model_name = raw_result[DJANGO_CT].split('.')
+            additional_fields = {}
+            model = get_model(app_label, model_name)
+
+            if model and model in indexed_models:
+                for key, value in raw_result.items():
+                    index = unified_index.get_index(model)
+                    string_key = str(key)
+
+                    if string_key in index.fields and hasattr(index.fields[string_key], 'convert'):
+                        additional_fields[string_key] = index.fields[string_key].convert(value)
+                    else:
+                        additional_fields[string_key] = self._to_python(value)
+
+                del(additional_fields[DJANGO_CT])
+                del(additional_fields[DJANGO_ID])
+
+                score = 1  # FIXME
+                result = result_class(app_label, model_name, raw_result[DJANGO_ID], score, **additional_fields)
+                results.append(result)
+            else:
+                hits -= 1
+
+        return {
+            'results': results,
             'hits': hits,
+            'facets': [],
+            'spelling_suggestion': [],
         }
 
     def _iso_datetime(self, value):

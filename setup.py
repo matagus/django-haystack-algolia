@@ -9,7 +9,7 @@ def read(fname):
 
 setup(
     name = 'haystack-algolia',
-    version = '0.1',
+    version = '0.2',
     description = "An Algolia backend for Haystack",
     long_description = read('README.md'),
     classifiers = [
@@ -27,13 +27,4 @@ setup(
     url = 'http://github.com/matagus/haystack-algolia/',
     license = 'BSD License',
     packages = ['haystack_algolia'],
-    #install_requires = [
-        #'Django', 'haystack>=2.0'
-    #],
-    #package_data={
-         #'haystack_algolia': [
-             #'templates/panels/*',
-             #'templates/search_configuration/*',
-         #]
-     #},
 )
