@@ -20,15 +20,18 @@ Install haystack-algolia from github using pip:
 
 Then add to your settings.py:
 
-    HAYSTACK_CONNECTIONS = {
-        'default': {
-            'ENGINE': 'haystack_algolia.algolia_backend.AlgoliaEngine',
-            'APP_ID': '<YOUR APP ID>',
-            'API_KEY': '<YOUR API KEY>',
-            'INDEX_NAME': '<INDEX NAME>',
-            'TIMEOUT': 60 * 5
-        }
+
+```python
+HAYSTACK_CONNECTIONS = {
+    'default': {
+        'ENGINE': 'haystack_algolia.algolia_backend.AlgoliaEngine',
+        'APP_ID': '<YOUR APP ID>',
+        'API_KEY': '<YOUR API KEY>',
+        'INDEX_NAME': '<INDEX NAME>',
+        'TIMEOUT': 60 * 5
     }
+}
+```
 
 Now you can use haystack as usual. Notice so far it only provides a few features:
 
