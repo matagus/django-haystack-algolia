@@ -7,6 +7,7 @@ from __future__ import unicode_literals
 import datetime
 import re
 
+from collections import defaultdict
 from warnings import warn
 
 from django.conf import settings
@@ -20,6 +21,7 @@ from haystack import connections
 from haystack.backends import BaseEngine, BaseSearchBackend, BaseSearchQuery, log_query
 from haystack.constants import ID, DJANGO_CT, DJANGO_ID
 from haystack.models import SearchResult
+from haystack.utils import get_identifier
 
 from algoliasearch import algoliasearch
 
@@ -54,7 +56,7 @@ class AlgoliaSearchBackend(BaseSearchBackend):
     def __init__(self, connection_alias, **connection_options):
         super(AlgoliaSearchBackend, self).__init__(connection_alias, **connection_options)
 
-        for key in ("APP_ID", "API_KEY", "INDEX_NAME"):
+        for key in ("APP_ID", "API_KEY", "INDEX_NAME_PREFIX"):
             if not key in connection_options:
                 raise ImproperlyConfigured(
                     "You must specify a '{}' in your settings for connection '{}'."\
@@ -65,41 +67,47 @@ class AlgoliaSearchBackend(BaseSearchBackend):
         self.conn = algoliasearch.Client(
             connection_options["APP_ID"], connection_options["API_KEY"])
 
-        self.index_name = connection_options["INDEX_NAME"]
+        self.index_name_prefix = connection_options.get("INDEX_NAME_PREFIX", "") or ""
 
         self.setup_complete = False
 
         self.log = logging.getLogger("haystack")
 
-    def setup(self):
+    def _get_index_for(self, model):
+        model_klass = model._meta.concrete_model
+        index_name = "{}{}.{}".format(self.index_name_prefix, model._meta.app_label, model._meta.model_name)
+        return self.conn.initIndex(index_name)
 
-        unified_index = connections[self.connection_alias].get_unified_index()
+    def _get_fields_to_index(self, model):
+        model_klass = model._meta.concrete_model
+        haystack_index = connections[self.connection_alias].get_unified_index().get_index(model_klass)
 
         # which fields to index
-        fields = set(unified_index.all_searchfields().keys())
-        fields.add(unified_index.document_field)
+        fields = haystack_index.get_field_weights().items()
+        return [field for (field, order) in sorted(fields, key=lambda item: item[1], reverse=True)]
 
-        try:
-            self.index = self.conn.initIndex(self.index_name)
+    def setup(self):
+        indexed_models = connections[self.connection_alias].get_unified_index().get_indexed_models()
 
-            self.index.setSettings(
+        for model in indexed_models:
+            index = self._get_index_for(model)
+
+            index.setSettings(
                 dict(
-                    attributesToIndex=list(fields),
+                    attributesToIndex=self._get_fields_to_index(model),
                     attributesForFaceting=[],
                     optionalWords=self.connection_options.get("OPTIONAL_WORDS")
                 )
-            )
-        except algoliasearch.AlgoliaException:
-            warn('update is not implemented in this backend')
-            raise
+           )
 
     def update(self, index, iterable, commit=True):
 
         if not self.setup_complete:
             self.setup()
 
-        prepped_docs = []
+        prepped_docs_by_model = defaultdict(list)
 
+        # prepare and group objects by model
         for obj in iterable:
             prepped_data = index.full_prepare(obj)
             final_data = {}
@@ -111,25 +119,32 @@ class AlgoliaSearchBackend(BaseSearchBackend):
             final_data['objectID'] = final_data[ID]
             del final_data["id"]
 
-            prepped_docs.append(final_data)
+            prepped_docs_by_model[obj._meta.model].append(final_data)
 
-        self.index.addObjects(prepped_docs)
+        # then update each model index objects
+        for model, docs in prepped_docs_by_model.items():
+            algolia_index = self._get_index_for(model)
+            algolia_index.addObjects(docs)
 
     def remove(self, obj, commit=True):
 
         if not self.setup_complete:
             self.setup()
 
-        warn('remove is not implemented in this backend')
-
-        #self.index.deleteObject("1")
+        index = self._get_index_for(obj._meta.model)
+        index.deleteObject(get_identifier(obj))
 
     def clear(self, models=[], commit=True):
 
         if not self.setup_complete:
             self.setup()
 
-        self.index.clearIndex()
+        if not models:
+            models = connections[self.connection_alias].get_unified_index().get_indexed_models()
+
+        for model in models:
+            index = self._get_index_for(model)
+            index.clearIndex()
 
     @log_query
     def search(self, query_string, **kwargs):
@@ -139,28 +154,23 @@ class AlgoliaSearchBackend(BaseSearchBackend):
 
         hits = 0
         results = []
-        result_class = SearchResult
-        models = connections[self.connection_alias].get_unified_index().get_indexed_models()
+        result_class = kwargs.get('result_class') or SearchResult
 
-        if kwargs.get('result_class'):
-            result_class = kwargs['result_class']
+        models = kwargs.get('models')
 
-        if kwargs.get('models'):
-            models = kwargs['models']
-
-        if query_string:
-            for model in models:
-                pass
+        if models is None or len(models) > 1:
+            warn("Quering more than one model feature hasn't been implemented so far")
+            return {'results': [], 'hits': 0}
 
         # set the sort order
-
         start_offset = kwargs['start_offset']
         end_offset = kwargs['end_offset']
         per_page = end_offset - start_offset
         page = int(start_offset / per_page)
 
         # query algolia.com
-        raw_results = self.index.search(query_string, dict(hitsPerPage=per_page, facets='*', page=page))
+        index = self._get_index_for(list(models)[0])
+        raw_results = index.search(query_string, dict(hitsPerPage=per_page, facets='*', page=page))
 
         # and then transform json response into haystack search result instances
         results = self._process_results(raw_results, result_class=result_class)
@@ -289,10 +299,15 @@ class AlgoliaSearchBackend(BaseSearchBackend):
 class AlgoliaSearchQuery(BaseSearchQuery):
 
     def build_query(self):
+        # so far, pretty dummy
+
         if not self.query_filter:
             return '*'
 
-        return ''
+        # no field filtering. It's an Algolia's feature, not a bug.
+        queries = [value for field_name, value in self.query_filter.children]
+
+        return ' '.join(queries)
 
 
 class AlgoliaEngine(BaseEngine):
