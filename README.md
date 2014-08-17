@@ -47,6 +47,7 @@ TODO
  * faceting
  * more_like_this
  * highlighting
+ * geo-search
 
 
 Notice algolia.com does not support [dinamically defined (per query) sort
