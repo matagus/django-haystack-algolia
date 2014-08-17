@@ -5,9 +5,6 @@ An [Algolia](https://www.algolia.com/) backend for [Haystack 2.x](http://haystac
 Use Algolia service to index and search your django models.
 
 
-Notice this is a pretty incomplete work in progress. See TODO section for stuff to be implemented.
-==================================================================================================
-
 INSTALLATION
 ------------
 
@@ -43,14 +40,15 @@ Now you can use haystack as usual. Notice so far it only provides a few features
 TODO
 ----
 
- * partially clear and index
+ * partially clear an index
+ * make updates in batchs
  * query just one or several models, not all models
  * filtering by dates and numbers
- * make updates in batchs
+ * faceting
  * more_like_this
  * highlighting
- * faceting
 
- Notice algolia.com does not support [dinamically defined (per query) sort
- order](https://www.algolia.com/doc/guides/python#Sorting), so using
- .order_by() in a haystack SearchQueryset won't make any difference.
+
+Notice algolia.com does not support [dinamically defined (per query) sort
+order](https://www.algolia.com/doc/guides/python#Sorting), so using
+.order_by() in a haystack SearchQueryset won't make any difference.
