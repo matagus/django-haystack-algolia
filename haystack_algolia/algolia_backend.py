@@ -5,9 +5,11 @@ See http://www.algolia.com/
 from __future__ import unicode_literals
 
 import datetime
+import math
 import re
 
 from collections import defaultdict
+from itertools import tee
 from warnings import warn
 
 from django.conf import settings
@@ -29,6 +31,8 @@ from algoliasearch import algoliasearch
 DATETIME_REGEX = re.compile(
     r'^(?P<year>\d{4})-(?P<month>\d{2})-(?P<day>\d{2})T'
     r'(?P<hour>\d{2}):(?P<minute>\d{2}):(?P<second>\d{2})(\.\d+)?$')
+
+UPDATE_CHUNK_SIZE = 50
 
 if settings.DEBUG:
     import logging
@@ -106,6 +110,7 @@ class AlgoliaSearchBackend(BaseSearchBackend):
             self.setup()
 
         prepped_docs_by_model = defaultdict(list)
+        count_by_model = defaultdict(int)
 
         # prepare and group objects by model
         for obj in iterable:
@@ -120,11 +125,17 @@ class AlgoliaSearchBackend(BaseSearchBackend):
             del final_data["id"]
 
             prepped_docs_by_model[obj._meta.model].append(final_data)
+            count_by_model[obj._meta.model] += 1
 
         # then update each model index objects
         for model, docs in prepped_docs_by_model.items():
             algolia_index = self._get_index_for(model)
-            algolia_index.addObjects(docs)
+
+            obj_count = count_by_model[model]
+            chunks = int(math.ceil(obj_count / float(UPDATE_CHUNK_SIZE)))
+
+            for doc_iterator in tee(docs, chunks):
+                algolia_index.addObjects(doc_iterator)
 
     def remove(self, obj, commit=True):
 
