@@ -45,7 +45,6 @@ TODO
 Haystack features:
 
  * filtering by dates, numbers or tags: https://www.algolia.com/doc/guides/python#Filtering
- * make updates in batchs
  * narrowing results
  * faceting
  * more_like_this
