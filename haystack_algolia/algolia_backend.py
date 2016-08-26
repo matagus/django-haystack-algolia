@@ -34,24 +34,6 @@ DATETIME_REGEX = re.compile(
 
 UPDATE_CHUNK_SIZE = 50
 
-if settings.DEBUG:
-    import logging
-
-    class NullHandler(logging.Handler):
-        def emit(self, record):
-            pass
-
-    ch = logging.StreamHandler()
-    ch.setLevel(logging.WARNING)
-    ch.setFormatter(logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s'))
-
-    logger = logging.getLogger('haystack.simple_backend')
-    logger.setLevel(logging.WARNING)
-    logger.addHandler(NullHandler())
-    logger.addHandler(ch)
-else:
-    logger = None
-
 
 class AlgoliaSearchBackend(BaseSearchBackend):
     """
@@ -74,8 +56,6 @@ class AlgoliaSearchBackend(BaseSearchBackend):
         self.index_name_prefix = connection_options.get("INDEX_NAME_PREFIX", "") or ""
 
         self.setup_complete = False
-
-        self.log = logging.getLogger("haystack")
 
     def _get_index_for(self, model):
         model_klass = model._meta.concrete_model
